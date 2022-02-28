@@ -1,0 +1,165 @@
+// AS A QUESTION FOR THE TEACHING STAFF:
+// BRANCH HANDLING IS A LITTLE BIT ODD, WHAT SHOULD WE DO?
+
+// R1 = LFSR
+// R2 = inputMessage
+// R3 = outputMessage
+// R4 = count
+// R5 = characterToEncode
+// R6 = bits
+
+
+// mem[62] is the index into the LFSR pattern table
+// mem[63] is the 1st entry in the LFSR pattern table
+// Get the LFSR pattern from mem[mem[62]+mem[63]]
+
+	// R1 <- mem[62]
+	MV #62		
+	LDR R0
+	STR0 R1
+	// R0 <- mem[63]
+	MV #63		
+	LDR R0
+	ADD R1		
+	// R0 += R1
+	LDR R0		
+	// R1 = mem[R0]
+	STR0 R1
+
+// inputMessage, at mem address [0]
+// outputMessage , at mem address [64]
+
+	MV #0
+	STR0 R2
+	MV #64
+	STR0 R3
+
+// count = 61
+
+	MV #61
+	LDR R0
+	STR0 R4
+
+// count = min(max(count, 10), 15)
+// if (R4 < 10) R4 = 10;
+
+	MV #10            
+	SUB R4
+	SKLT R0
+	B force_10 
+
+//  if (R4 > 15) R4 = 15;
+
+	MV #15            
+	SUB R4
+	SKLT R0
+	B okay 
+
+	MV #15
+	STR0 R4
+	B okay
+
+force_10:
+	MV #10
+	STR0 R4
+
+okay:
+	MV #0		
+	// count = -count
+	SUB R4
+	STR0 R4
+
+// Encode (count) spaces....
+
+loop1:
+	MV #32		
+	// a space
+
+// Encode R0 using R1 vvvv
+
+loop2:
+	STR0 R5		
+	// save the character
+	LSL R5		
+	//    shift it left and
+	AND R1		
+	//       AND with the lfsr
+	STR0 R6		
+	//          and save in a temp
+
+// Calculate the parity of R0 into bit 0 of the encoded character
+
+	LSR R6		
+	// temp ^= (temp >> 4)
+	LSR R6
+	LSR R6
+	LSR R6
+	XOR R6
+	STR0 R6
+	LSR R6		
+	// temp ^= (temp >> 2)
+	LSR R6
+	XOR R6
+	STR0 R6
+	LSR R6		
+	// temp ^= (temp >> 1)
+	XOR R6
+	STR0 R6
+	MV #1		
+	// temp &= 1
+	AND R6
+	LOR R5		
+	// cToEncode |= temp
+	STR0 R5
+	STR0 R6		
+	// temp = cToEncode
+
+// Calculate the parity of R0 into bit 7
+
+	LSL R6	 	
+	// temp ^= (temp << 4)
+	LSL R6
+	LSL R6
+	LSL R6
+	XOR R6
+	STR0 R6
+	LSL R6		
+	// temp ^= (temp << 2)
+	LSL R6
+	XOR R6
+	STR0 R6
+	LSL R6		
+	// temp ^= (temp << 1)
+	XOR R6
+	STR0 R6
+	MV #128		
+	// temp &= 128
+	AND R6
+	LOR R5		
+	// cToEncode |= temp
+
+// Encode R0 using R1 ^^^^
+
+	STR R3		
+	// Save the encoded character
+	INC R3
+
+	INC R4		
+	// Are we done with leading spaces?
+	SKLT R4		
+	//    No, skip
+	B nxtMsg	
+	//    Yes, get the next message character
+
+	B loop1		
+	// Go back for the next space
+
+nxtMsg:
+	LDR R2		
+	// Get the next unencoded character
+	INC R2
+
+	SKEQ R0		
+	// Last message character (assuming nul-terminated)?
+	B loop2		
+	//    No, encode this one
